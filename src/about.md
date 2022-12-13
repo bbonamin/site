@@ -3,8 +3,4 @@ layout: page
 title: About
 ---
 
-This is the basic Bridgetown site template. You can find out more info about customizing your Bridgetown site, as well as basic Bridgetown usage documentation at [bridgetownrb.com](https://bridgetownrb.com/)
-
-You can find the source code for Bridgetown at GitHub:
-[bridgetownrb](https://github.com/bridgetownrb) /
-[bridgetown](https://github.com/bridgetownrb/bridgetown)
+My name is Bruno Bonamin. I'm a software guy based in Argentina. You can find me [on Github](https://github.com/bbonamin)
