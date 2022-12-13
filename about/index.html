@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<title>About | Landing Code</title>
+
+<meta name="description" content="The website of Bruno Bonamin." />
+
+<link rel="stylesheet" href="/_bridgetown/static/index.KQDRFF45.css" />
+<script src="/_bridgetown/static/index.RARUY3ZT.js" defer></script>
+<script type="module">let lastmod = 0
+function startReloadConnection() {
+  const evtSource = new EventSource("/_bridgetown/live_reload")
+  evtSource.onmessage = event => {
+    if (event.data == "reloaded!") {
+      location.reload()
+    } else {
+      const newmod = Number(event.data)
+      if (lastmod > 0 && newmod > 0 && lastmod < newmod) {
+        location.reload()
+      } else {
+        lastmod = newmod
+      }
+    }
+  }
+  evtSource.onerror = event => {
+    if (evtSource.readyState === 2) {
+      // reconnect with new object
+      evtSource.close()
+      console.warn("Live reload: attempting to reconnect in 3 seconds...")
+
+      setTimeout(() => startReloadConnection(), 3000)
+    }
+  }
+}
+setTimeout(() => {
+  startReloadConnection()
+}, 500)
+</script>
+
+  </head>
+  <body class="page ">
+    <header></header>
+
+<nav>
+  <ul>
+    <li><a href="/">Home</a></li>
+    <li><a href="/about">About</a></li>
+  </ul>
+</nav>
+
+
+    <main>
+      <h1>About</h1>
+
+<p>My name is Bruno Bonamin. I’m a software guy based in Argentina. You can find me <a href="https://github.com/bbonamin">on Github</a></p>
+
+
+    </main>
+
+    <footer>
+  Contact me at <a href="mailto:bruno@bonamin.org">bruno@bonamin.org</a>
+</footer>
+
+  </body>
+</html>

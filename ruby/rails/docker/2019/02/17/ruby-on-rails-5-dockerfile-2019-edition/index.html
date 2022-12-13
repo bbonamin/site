@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<title>Ruby on Rails 5 Dockerfile: 2019 Edition | Landing Code</title>
+
+<meta name="description" content="The website of Bruno Bonamin." />
+
+<link rel="stylesheet" href="/_bridgetown/static/index.KQDRFF45.css" />
+<script src="/_bridgetown/static/index.RARUY3ZT.js" defer></script>
+<script type="module">let lastmod = 0
+function startReloadConnection() {
+  const evtSource = new EventSource("/_bridgetown/live_reload")
+  evtSource.onmessage = event => {
+    if (event.data == "reloaded!") {
+      location.reload()
+    } else {
+      const newmod = Number(event.data)
+      if (lastmod > 0 && newmod > 0 && lastmod < newmod) {
+        location.reload()
+      } else {
+        lastmod = newmod
+      }
+    }
+  }
+  evtSource.onerror = event => {
+    if (evtSource.readyState === 2) {
+      // reconnect with new object
+      evtSource.close()
+      console.warn("Live reload: attempting to reconnect in 3 seconds...")
+
+      setTimeout(() => startReloadConnection(), 3000)
+    }
+  }
+}
+setTimeout(() => {
+  startReloadConnection()
+}, 500)
+</script>
+
+  </head>
+  <body class="post ">
+    <header></header>
+
+<nav>
+  <ul>
+    <li><a href="/">Home</a></li>
+    <li><a href="/about">About</a></li>
+  </ul>
+</nav>
+
+
+    <main>
+      <h1>Ruby on Rails 5 Dockerfile: 2019 Edition</h1>
+
+<p>Most of other posts online about creating a production Docker image for Rails applications seem to be a little basic. Maybe the majority of developers have migrated to other platforms? I needed to dockerize a Rails application for a production deployment, which has a couple of requirements that other guides do not seem to mention:</p>
+
+<ul>
+  <li>It needs to be as small as possible</li>
+  <li>It needs to use a production webserver (we use Passenger, but puma would be fine too)</li>
+  <li>It needs to compile assets using webpack, and install dependencies using yarn (as Webpacker is being used)</li>
+  <li>It needs to be able to pull gems from private github repositories.</li>
+</ul>
+
+<p>I’m still getting used to Docker, I’m not an expert by any means, but I hope my learnings below are useful. I still need to do some work specifically in the configuration, as we are going to be using Kubernetes (and I’ve read it has a tool called configMap), but for now I’m overriding files like <code class="highlighter-rouge">config.yml</code> and <code class="highlighter-rouge">database.yml</code> with versions that are checked-in.</p>
+
+<h1 id="small-as-possible">Small as possible</h1>
+<p>For this requirement, I wanted to use the Alpine distro, as it’s pretty well known in the docker world, and even has official ruby images, which are way more lightweight than Ubuntu.</p>
+
+<p>There’s always the ability to improve further in this area, so I’m open for suggestions.</p>
+
+<h1 id="production-webserver-passenger">Production Webserver (Passenger)</h1>
+<p>Installing passenger was tricky as it doesn’t have any official repositories for Alpine, and simply letting the <code class="highlighter-rouge">passenger</code> rubygem on the Gemfile attempt to install it, fails.</p>
+
+<h1 id="webpack">Webpack</h1>
+<p>This application’s frontend is built using React, Redux, and other modern frontend libraries, and we use the Webpacker gem (which has made working with modern JS frontend in Rails a breeze). Therefore, the docker image needs to install all frontend dependencies and be able to compile the assets.</p>
+
+<p>I started getting some early exits with the status code 137 when trying to compile assets now and then, and eventually found that this was caused by the massive about of working memory that the container requires when compiling assets (it wasn’t strange to see it using 2-3GB of RAM). Increasing the amount of memory available to Docker for Desktop fixed this issue, but I would like to find a way to reduce this footprint in the future (maybe removing Sprockets completely or moving to Webpack 4 would make things better? I don’t know).</p>
+
+<h1 id="private-gems">Private gems</h1>
+<p>The issue with pulling gems from a private repository is that you either need an SSH key that can read from that repo, or you need to provide credentials for access via HTTPS, as these are the two strategies that Bundler supports. I discarded the SSH key strategy as that was too complicated (needed to provide it to the image at build time, needed to install an ssh agent), and opted instead for the HTTPS version.</p>
+
+<p>Doing some reading I found that it’s possible to not require to provide username and password but instead an <a href="https://developer.github.com/v3/auth/#via-oauth-tokens">OAUTH token </a>, which could be generated from a shared account for deployment, or any developer could generate their own to build the image locally.</p>
+
+<p>Bundler supports <a href="https://bundler.io/v1.15/bundle_config.html#CREDENTIALS-FOR-GEM-SOURCES">credentials for gem sources natively</a>, so it’s possible to run <code class="highlighter-rouge">bundle config GITHUB__COM abc123</code> with the generated Github token as part of the build. The problem with this approach is that you would be checking the token in the Dockerfile repository, unless you used <a href="https://docs.docker.com/engine/reference/commandline/build/#set-build-time-variables---build-arg">Docker build-time variables</a>, which would be an improvement, but this would <em>still</em> persist the token inside the image, viewable by running <code class="highlighter-rouge">bundle config</code>.</p>
+
+<p>It is possible to provide an argument to a docker image, which can be used by bundler to authenticate with Github, and not have this token end up in the final image, by using a combination of Docker build-time variables, and Bundler support for credentials via ENV variables. It looks like this:</p>
+
+<figure class="highlight"><pre><code class="language-dockerfile" data-lang="dockerfile"><span class="c"># ...</span>
+<span class="k">ARG</span><span class="s"> GITHUB_ACCESS_TOKEN</span>
+<span class="k">RUN </span><span class="nv">BUNDLE_GITHUB__COM</span><span class="o">=</span><span class="s2">"</span><span class="nv">$GITHUB_ACCESS_TOKEN</span><span class="s2">:x-oauth-basic"</span> bundle <span class="nb">install</span> <span class="nt">--without</span> development <span class="nb">test</span>
+<span class="c"># ...</span></code></pre></figure>
+
+<p>And to build the image:</p>
+<figure class="highlight"><pre><code class="language-shell" data-lang="shell">docker build <span class="nt">-t</span> myapp-prod <span class="nt">--build-arg</span> <span class="nv">GITHUB_ACCESS_TOKEN</span><span class="o">=</span>abc123 .</code></pre></figure>
+
+<h1 id="dockerfile">Dockerfile</h1>
+<p>After a couple of days of tweaks to attempt to leverage Docker caching layers as much as possible, this is the end result:</p>
+
+<figure class="highlight"><pre><code class="language-dockerfile" data-lang="dockerfile"><span class="k">FROM</span><span class="s"> ruby:2.6.1-alpine3.9</span>
+
+<span class="k">RUN </span><span class="nb">mkdir</span> <span class="nt">-p</span> /opt/www/myapp
+<span class="k">WORKDIR</span><span class="s"> /opt/www/myapp</span>
+
+<span class="k">RUN </span>apk add <span class="nt">--no-cache</span> <span class="nt">--update</span> build-base <span class="se">\
+</span>  linux-headers <span class="se">\
+</span>  git <span class="se">\
+</span>  postgresql-dev <span class="se">\
+</span>  mariadb-dev <span class="se">\
+</span>  nodejs <span class="se">\
+</span>  tzdata <span class="se">\
+</span>  git <span class="se">\
+</span>  openssh <span class="se">\
+</span>  build-base <span class="se">\
+</span>  libxml2-dev <span class="se">\
+</span>  libxslt-dev <span class="se">\
+</span>  yarn <span class="se">\
+</span>  curl-dev
+
+<span class="k">ENV</span><span class="s"> PASSENGER_VERSION="6.0.1"</span>
+<span class="k">ENV</span><span class="s"> PATH="/opt/passenger/bin:$PATH"</span>
+<span class="k">ENV</span><span class="s"> VERBOSE=1</span>
+
+<span class="k">RUN </span><span class="nv">PACKAGES</span><span class="o">=</span><span class="s2">"ca-certificates procps curl pcre libstdc++ libexecinfo"</span> <span class="o">&amp;&amp;</span> <span class="se">\
+</span>  <span class="nv">BUILD_PACKAGES</span><span class="o">=</span><span class="s2">"build-base linux-headers pcre-dev libexecinfo-dev"</span> <span class="o">&amp;&amp;</span> <span class="se">\
+</span>  apk add <span class="nt">--update</span> <span class="nv">$PACKAGES</span> <span class="nv">$BUILD_PACKAGES</span> <span class="o">&amp;&amp;</span> <span class="se">\
+</span>  <span class="c"># download and extract</span>
+  mkdir -p /opt &amp;&amp; \
+  curl -L https://s3.amazonaws.com/phusion-passenger/releases/passenger-$PASSENGER_VERSION.tar.gz | tar -xzf - -C /opt &amp;&amp; \
+  mv /opt/passenger-$PASSENGER_VERSION /opt/passenger &amp;&amp; \
+  export EXTRA_PRE_CFLAGS='-O' EXTRA_PRE_CXXFLAGS='-O' EXTRA_LDFLAGS='-lexecinfo' &amp;&amp; \
+  # compile agent
+  passenger-config compile-agent --auto --optimize &amp;&amp; \
+  passenger-config install-standalone-runtime --auto --url-root=fake --connect-timeout=60 &amp;&amp; \
+  passenger-config build-native-support
+
+<span class="c"># Cleanup passenger src directory</span>
+<span class="k">RUN </span>passenger-config validate-install <span class="nt">--auto</span> <span class="o">&amp;&amp;</span> <span class="se">\
+</span>  apk del <span class="nv">$BUILD_PACKAGES</span>
+
+<span class="k">RUN </span><span class="nb">rm</span> <span class="nt">-rf</span> /var/cache/apk/<span class="k">*</span>
+
+<span class="k">ENV</span><span class="s"> RAILS_ENV production</span>
+<span class="k">ENV</span><span class="s"> RAILS_SERVE_STATIC_FILES true</span>
+
+<span class="k">ENV</span><span class="s"> NODE_ENV production</span>
+
+<span class="c"># Gems installation</span>
+<span class="k">COPY</span><span class="s"> Gemfile Gemfile.lock ./</span>
+<span class="k">ARG</span><span class="s"> GITHUB_ACCESS_TOKEN</span>
+<span class="k">RUN </span>bundle config <span class="nt">--global</span> frozen 1
+<span class="k">RUN </span><span class="nv">BUNDLE_GITHUB__COM</span><span class="o">=</span><span class="s2">"</span><span class="nv">$GITHUB_ACCESS_TOKEN</span><span class="s2">:x-oauth-basic"</span> bundle <span class="nb">install</span> <span class="nt">--without</span> development <span class="nb">test</span>
+
+<span class="c"># NPM packages installation</span>
+<span class="k">COPY</span><span class="s"> package.json yarn.lock ./</span>
+<span class="k">RUN </span>yarn <span class="nb">install</span> <span class="nt">--frozen-lockfile</span> <span class="nt">--non-interactive</span>
+
+<span class="k">COPY</span><span class="s"> . /opt/www/myapp</span>
+
+<span class="k">COPY</span><span class="s"> config/database.docker.yml config/database.yml</span>
+
+<span class="k">RUN </span>bundle <span class="nb">exec </span>rake assets:clobber assets:precompile <span class="nt">--trace</span>
+<span class="k">RUN </span>yarn cache clean
+
+<span class="k">EXPOSE</span><span class="s"> 3000</span>
+<span class="k">CMD</span><span class="s"> ["passenger", "start", "-b", "0.0.0.0"]</span></code></pre></figure>
+
+
+    </main>
+
+    <footer>
+  Contact me at <a href="mailto:bruno@bonamin.org">bruno@bonamin.org</a>
+</footer>
+
+  </body>
+</html>

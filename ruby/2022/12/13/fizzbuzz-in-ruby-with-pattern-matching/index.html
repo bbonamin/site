@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<title>FizzBuzz in Ruby with Pattern Matching | Landing Code</title>
+
+<meta name="description" content="The website of Bruno Bonamin." />
+
+<link rel="stylesheet" href="/_bridgetown/static/index.KQDRFF45.css" />
+<script src="/_bridgetown/static/index.RARUY3ZT.js" defer></script>
+<script type="module">let lastmod = 0
+function startReloadConnection() {
+  const evtSource = new EventSource("/_bridgetown/live_reload")
+  evtSource.onmessage = event => {
+    if (event.data == "reloaded!") {
+      location.reload()
+    } else {
+      const newmod = Number(event.data)
+      if (lastmod > 0 && newmod > 0 && lastmod < newmod) {
+        location.reload()
+      } else {
+        lastmod = newmod
+      }
+    }
+  }
+  evtSource.onerror = event => {
+    if (evtSource.readyState === 2) {
+      // reconnect with new object
+      evtSource.close()
+      console.warn("Live reload: attempting to reconnect in 3 seconds...")
+
+      setTimeout(() => startReloadConnection(), 3000)
+    }
+  }
+}
+setTimeout(() => {
+  startReloadConnection()
+}, 500)
+</script>
+
+  </head>
+  <body class="post ">
+    <header></header>
+
+<nav>
+  <ul>
+    <li><a href="/">Home</a></li>
+    <li><a href="/about">About</a></li>
+  </ul>
+</nav>
+
+
+    <main>
+      <h1>FizzBuzz in Ruby with Pattern Matching</h1>
+
+<p>The addition of <a href="https://www.ruby-lang.org/en/news/2019/12/25/ruby-2-7-0-released/">Pattern Matching to Ruby since version 2.7</a> allow for really expressive code… learning more about Elixir and coming back to Ruby being able to do this feels like cheating:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">def</span> <span class="nf">fizz_buzz</span><span class="p">(</span><span class="n">number</span><span class="p">)</span>
+  <span class="n">r</span> <span class="o">=</span> <span class="k">case</span> <span class="p">{</span><span class="ss">r3: </span><span class="n">number</span> <span class="o">%</span> <span class="mi">3</span><span class="p">,</span> <span class="ss">r5: </span><span class="n">number</span> <span class="o">%</span> <span class="mi">5</span><span class="p">,</span> <span class="n">number</span><span class="p">:}</span>
+    <span class="k">in</span> <span class="p">{</span> <span class="ss">r3: </span><span class="mi">0</span><span class="p">,</span> <span class="ss">r5: </span><span class="mi">0</span><span class="p">}</span> <span class="k">then</span> <span class="s2">"FizzBuzz"</span>
+    <span class="k">in</span> <span class="p">{</span> <span class="ss">r3: </span><span class="mi">0</span><span class="p">}</span> <span class="k">then</span> <span class="s2">"Fizz"</span>
+    <span class="k">in</span> <span class="p">{</span> <span class="ss">r5: </span><span class="mi">0</span><span class="p">}</span> <span class="k">then</span> <span class="s2">"Buzz"</span>
+  <span class="k">else</span> <span class="n">number</span>
+  <span class="k">end</span>
+  <span class="nb">puts</span> <span class="n">r</span>
+<span class="k">end</span>
+
+<span class="p">(</span><span class="mi">10</span><span class="o">..</span><span class="mi">17</span><span class="p">).</span><span class="nf">each</span> <span class="p">{</span> <span class="o">|</span><span class="n">n</span><span class="o">|</span> <span class="n">fizz_buzz</span> <span class="n">n</span><span class="p">}</span>
+<span class="c1">#=&gt; Buzz</span>
+<span class="c1">#=&gt; 11</span>
+<span class="c1">#=&gt; Fizz</span>
+<span class="c1">#=&gt; 13</span>
+<span class="c1">#=&gt; 14</span>
+<span class="c1">#=&gt; FizzBuzz</span>
+<span class="c1">#=&gt; 16</span>
+<span class="c1">#=&gt; 17</span>
+</code></pre></div></div>
+
+
+    </main>
+
+    <footer>
+  Contact me at <a href="mailto:bruno@bonamin.org">bruno@bonamin.org</a>
+</footer>
+
+  </body>
+</html>

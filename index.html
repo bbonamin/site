@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<title>Landing Code: If you can walk away from a landing, it&#39;s a good landing</title>
+
+<meta name="description" content="The website of Bruno Bonamin." />
+
+<link rel="stylesheet" href="/_bridgetown/static/index.KQDRFF45.css" />
+<script src="/_bridgetown/static/index.RARUY3ZT.js" defer></script>
+<script type="module">let lastmod = 0
+function startReloadConnection() {
+  const evtSource = new EventSource("/_bridgetown/live_reload")
+  evtSource.onmessage = event => {
+    if (event.data == "reloaded!") {
+      location.reload()
+    } else {
+      const newmod = Number(event.data)
+      if (lastmod > 0 && newmod > 0 && lastmod < newmod) {
+        location.reload()
+      } else {
+        lastmod = newmod
+      }
+    }
+  }
+  evtSource.onerror = event => {
+    if (evtSource.readyState === 2) {
+      // reconnect with new object
+      evtSource.close()
+      console.warn("Live reload: attempting to reconnect in 3 seconds...")
+
+      setTimeout(() => startReloadConnection(), 3000)
+    }
+  }
+}
+setTimeout(() => {
+  startReloadConnection()
+}, 500)
+</script>
+
+  </head>
+  <body class="default ">
+    <header></header>
+
+<nav>
+  <ul>
+    <li><a href="/">Home</a></li>
+    <li><a href="/about">About</a></li>
+  </ul>
+</nav>
+
+
+    <main>
+      <h1 id="landing-code">Landing Code</h1>
+
+<ul>
+  
+    <li>
+      <a href="/ruby/2022/12/13/fizzbuzz-in-ruby-with-pattern-matching/">FizzBuzz in Ruby with Pattern Matching</a>
+    </li>
+  
+    <li>
+      <a href="/ruby/rails/docker/2019/02/24/ruby-on-rails-5-dockerfile-slimming-down/">Ruby on Rails 5 Dockerfile: Slimming Down Further</a>
+    </li>
+  
+    <li>
+      <a href="/ruby/rails/docker/2019/02/17/ruby-on-rails-5-dockerfile-2019-edition/">Ruby on Rails 5 Dockerfile: 2019 Edition</a>
+    </li>
+  
+</ul>
+
+<hr />
+
+    </main>
+
+    <footer>
+  Contact me at <a href="mailto:bruno@bonamin.org">bruno@bonamin.org</a>
+</footer>
+
+  </body>
+</html>

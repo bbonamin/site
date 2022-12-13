@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<title>Ruby on Rails 5 Dockerfile: Slimming Down Further | Landing Code</title>
+
+<meta name="description" content="The website of Bruno Bonamin." />
+
+<link rel="stylesheet" href="/_bridgetown/static/index.KQDRFF45.css" />
+<script src="/_bridgetown/static/index.RARUY3ZT.js" defer></script>
+<script type="module">let lastmod = 0
+function startReloadConnection() {
+  const evtSource = new EventSource("/_bridgetown/live_reload")
+  evtSource.onmessage = event => {
+    if (event.data == "reloaded!") {
+      location.reload()
+    } else {
+      const newmod = Number(event.data)
+      if (lastmod > 0 && newmod > 0 && lastmod < newmod) {
+        location.reload()
+      } else {
+        lastmod = newmod
+      }
+    }
+  }
+  evtSource.onerror = event => {
+    if (evtSource.readyState === 2) {
+      // reconnect with new object
+      evtSource.close()
+      console.warn("Live reload: attempting to reconnect in 3 seconds...")
+
+      setTimeout(() => startReloadConnection(), 3000)
+    }
+  }
+}
+setTimeout(() => {
+  startReloadConnection()
+}, 500)
+</script>
+
+  </head>
+  <body class="post ">
+    <header></header>
+
+<nav>
+  <ul>
+    <li><a href="/">Home</a></li>
+    <li><a href="/about">About</a></li>
+  </ul>
+</nav>
+
+
+    <main>
+      <h1>Ruby on Rails 5 Dockerfile: Slimming Down Further</h1>
+
+<p>In my <a href="/ruby/rails/docker/2019/02/17/ruby-on-rails-5-dockerfile-2019-edition/">previous post</a> I attempted to generate a Docker image for a Rails application I’m working on, to be as small as possible.</p>
+
+<p>This week I’ve been able to improve that output even more, after finding out about <a href="https://docs.docker.com/develop/develop-images/multistage-build/">Docker multistage builds</a>.</p>
+
+<p>Using the Dockerfile described at the end of my last post, an image that weighed 1.2GB was built. Not crazy, but still a lot. Running a <code class="highlighter-rouge">shell</code> in the image (<code class="highlighter-rouge">docker run -ti myapp /bin/sh</code>) showed that the actual files were using around 500MB of disk space, so where was the rest coming from?</p>
+
+<p>It turns out, that even if you delete dependencies (like compilers, etc); unless you do everything in the same command as the installation, the “layering” feature of Docker keeps a copy of that software, as an intermediate state. If you think about it, it makes sense, you might change a more recent layer (like decide to stop uninstalling certain dependencies), and Docker would still be able to re-use the cache from all previous layers.</p>
+
+<p>If you use the Multistage feature, the previous layers remain as part of the “builder” images, and are not carried over to the final image.</p>
+
+<h2 id="using-multistage-prevents-sharing-secret-tokens">Using Multistage prevents sharing secret tokens</h2>
+
+<p>I also discovered that with my previous approach, my claim</p>
+
+<blockquote>
+  <p>It is possible to provide an argument to a docker image, which can be used by bundler to authenticate with Github, and not have this token end up in the final image, by using a combination of Docker build-time variables, and Bundler support for credentials via ENV variables</p>
+</blockquote>
+
+<p>was false, as you were still able to see the Github token by checking the history of the image:</p>
+
+<figure class="highlight"><pre><code class="language-shell" data-lang="shell">❯ docker <span class="nb">history </span>myapp-prod
+IMAGE CREATED CREATED BY SIZE COMMENT
+24575fd555a9 5 days ago /bin/sh <span class="nt">-c</span> <span class="c">#(nop) CMD ["passenger" "start" … 0B</span>
+d54a9ded8035 5 days ago /bin/sh <span class="nt">-c</span> <span class="c">#(nop) EXPOSE 3000 0B</span>
+226768ca118a 5 days ago |1 <span class="nv">GITHUB_ACCESS_TOKEN</span><span class="o">=</span>ABC!123456… 176MB
+
+<span class="c"># ...</span></code></pre></figure>
+
+<p>The good news is that by using multistage builds (<em>and provided that only the final image is uploaded to the registry</em>), this “token” is not added to the final image’s history, as the <code class="highlighter-rouge">bundle</code> phase is replaced by a <code class="highlighter-rouge">copy</code>.</p>
+
+<figure class="highlight"><pre><code class="language-shell" data-lang="shell">❯ docker <span class="nb">history </span>myapp
+IMAGE CREATED CREATED BY SIZE COMMENT
+8341d5aa2089 2 days ago /bin/sh <span class="nt">-c</span> <span class="c">#(nop) CMD ["passenger" "start" … 0B</span>
+f85d7f3ce49d 2 days ago /bin/sh <span class="nt">-c</span> <span class="c">#(nop) EXPOSE 3000 0B</span>
+00eebda1d110 2 days ago /bin/sh <span class="nt">-c</span> <span class="c">#(nop) COPY dir:3eb6adbc9858fec2a… 65.4MB</span>
+e7c54cae075a 3 days ago /bin/sh <span class="nt">-c</span> <span class="c">#(nop) COPY dir:19e889591bcced183… 100MB</span>
+6956c2999c40 3 days ago /bin/sh <span class="nt">-c</span> <span class="c">#(nop) COPY dir:b1a0f67106288fb02… 1.17MB</span>
+bafaa2b3c7c1 3 days ago /bin/sh <span class="nt">-c</span> <span class="c">#(nop) COPY dir:a4daf71b677d4c5bc… 147MB</span>
+cf56f0a1b196 3 days ago /bin/sh <span class="nt">-c</span> <span class="c">#(nop) COPY dir:8ec1839535939889b… 158MB</span>
+9fec28c02120 3 days ago /bin/sh <span class="nt">-c</span> <span class="c">#(nop) COPY dir:1445209a55d41971e… 83.3MB</span>
+
+<span class="c"># ...</span></code></pre></figure>
+
+<p>I still need to do decide exactly which binaries and libraries to copy from <code class="highlighter-rouge">/usr/lib</code> instead of the complete directory, but with this change I was able to reduce the image size to 600MB, roughly a 50% improvement.</p>
+
+<h2 id="dockerfile">Dockerfile</h2>
+
+<figure class="highlight"><pre><code class="language-dockerfile" data-lang="dockerfile"><span class="c"># ---------------------------------------------------</span>
+
+<span class="c"># Phase 1 - Webserver install</span>
+
+<span class="c"># ---------------------------------------------------</span>
+
+<span class="k">FROM</span><span class="w"> </span><span class="s">ruby:2.6.1-alpine3.9</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="s">webserver-builder</span>
+
+<span class="k">RUN </span><span class="nb">mkdir</span> <span class="nt">-p</span> /opt/www/myapp
+<span class="k">WORKDIR</span><span class="s"> /opt/www/myapp</span>
+
+<span class="k">ENV</span><span class="s"> PASSENGER_VERSION="6.0.1"</span>
+<span class="k">ENV</span><span class="s"> PATH="/opt/passenger/bin:$PATH"</span>
+<span class="k">ENV</span><span class="s"> VERBOSE=1</span>
+
+<span class="k">RUN </span>apk add <span class="nt">--no-cache</span> <span class="nt">--update</span> <span class="se">\
+</span> ca-certificates <span class="se">\
+</span> procps <span class="se">\
+</span> curl <span class="se">\
+</span> pcre <span class="se">\
+</span> libstdc++ <span class="se">\
+</span> libexecinfo <span class="se">\
+</span>
+build-base \
+ curl-dev \
+ linux-headers \
+ pcre-dev \
+ libexecinfo-dev
+
+<span class="k">RUN </span><span class="nb">mkdir</span> <span class="nt">-p</span> /opt <span class="o">&amp;&amp;</span> <span class="se">\
+</span> curl <span class="nt">-L</span> https://s3.amazonaws.com/phusion-passenger/releases/passenger-<span class="nv">$PASSENGER_VERSION</span>.tar.gz | <span class="nb">tar</span> <span class="nt">-xzf</span> - <span class="nt">-C</span> /opt <span class="o">&amp;&amp;</span> <span class="se">\
+</span> <span class="nb">mv</span> /opt/passenger-<span class="nv">$PASSENGER_VERSION</span> /opt/passenger <span class="o">&amp;&amp;</span> <span class="se">\
+</span> <span class="nb">export </span><span class="nv">EXTRA_PRE_CFLAGS</span><span class="o">=</span><span class="s1">'-O'</span> <span class="nv">EXTRA_PRE_CXXFLAGS</span><span class="o">=</span><span class="s1">'-O'</span> <span class="nv">EXTRA_LDFLAGS</span><span class="o">=</span><span class="s1">'-lexecinfo'</span> <span class="o">&amp;&amp;</span> <span class="se">\
+</span> <span class="c"># compile agent</span>
+passenger-config compile-agent --auto --optimize &amp;&amp; \
+ passenger-config install-standalone-runtime --auto --url-root=fake --connect-timeout=60 &amp;&amp; \
+ passenger-config build-native-support &amp;&amp; \
+ passenger-config validate-install --auto
+
+<span class="c"># ---------------------------------------------------</span>
+
+<span class="c"># Phase 2 - Gems installation and assets compilation.</span>
+
+<span class="c"># ---------------------------------------------------</span>
+
+<span class="k">FROM</span><span class="w"> </span><span class="s">ruby:2.6.1-alpine3.9</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="s">builder</span>
+<span class="k">RUN </span>apk add <span class="nt">--no-cache</span> <span class="nt">--update</span> <span class="se">\
+</span> build-base <span class="se">\
+</span> postgresql-dev <span class="se">\
+</span> mariadb-dev <span class="se">\
+</span> git <span class="se">\
+</span> nodejs-current <span class="se">\
+</span> yarn <span class="se">\
+</span> tzdata <span class="se">\
+</span> libxml2-dev <span class="se">\
+</span> libxslt-dev <span class="se">\
+</span> python
+
+<span class="k">WORKDIR</span><span class="s"> /app</span>
+<span class="k">ENV</span><span class="s"> RAILS_ENV production</span>
+<span class="k">ENV</span><span class="s"> NODE_ENV production</span>
+
+<span class="c"># Gems installation</span>
+
+<span class="k">COPY</span><span class="s"> Gemfile Gemfile.lock ./</span>
+<span class="k">ARG</span><span class="s"> GITHUB_ACCESS_TOKEN</span>
+<span class="k">RUN </span>bundle config <span class="nt">--global</span> frozen 1 <span class="o">&amp;&amp;</span> <span class="se">\
+</span> BUNDLE_GITHUB<span class="se">\_\_</span><span class="nv">COM</span><span class="o">=</span><span class="s2">"</span><span class="nv">$GITHUB_ACCESS_TOKEN</span><span class="s2">:x-oauth-basic"</span> bundle <span class="nb">install</span> <span class="nt">--jobs</span> 4 <span class="nt">--without</span> development <span class="nb">test</span> <span class="o">&amp;&amp;</span> <span class="se">\
+</span> <span class="nb">rm</span> <span class="nt">-rf</span> /usr/local/bundle/cache/_.gem <span class="o">&amp;&amp;</span> <span class="se">\
+</span> find /usr/local/bundle/gems/ <span class="nt">-name</span> <span class="s2">"_.c"</span> <span class="nt">-delete</span> <span class="o">&amp;&amp;</span> <span class="se">\
+</span> find /usr/local/bundle/gems/ <span class="nt">-name</span> <span class="s2">"</span><span class="se">\*</span><span class="s2">.o"</span> <span class="nt">-delete</span>
+
+<span class="c"># NPM packages installation</span>
+
+<span class="k">COPY</span><span class="s"> package.json yarn.lock ./</span>
+<span class="k">RUN </span>yarn <span class="nb">install</span> <span class="nt">--frozen-lockfile</span> <span class="nt">--non-interactive</span> <span class="nt">--production</span>
+
+<span class="k">ADD</span><span class="s"> . /app</span>
+
+<span class="c"># Copy a dummy database.yml and config.yml to allow asset compilation, otherwise Rails blows up.</span>
+
+<span class="c"># Real configuration files are written by configMaps.</span>
+
+<span class="k">COPY</span><span class="s"> config/database.k8s-dummy.yml config/database.yml</span>
+<span class="k">COPY</span><span class="s"> config/config.k8s-dummy.yml config/config.yml</span>
+
+<span class="k">RUN </span>bundle <span class="nb">exec </span>rake assets:clobber assets:precompile <span class="nt">--trace</span> <span class="o">&amp;&amp;</span> <span class="se">\
+</span> yarn cache clean <span class="o">&amp;&amp;</span> <span class="se">\
+</span> <span class="nb">rm</span> <span class="nt">-rf</span> node_modules tmp/cache app/assets vendor/assets spec
+
+<span class="c"># ---------------------------------------------------</span>
+
+<span class="c"># Phase 3 - Final phase</span>
+
+<span class="c"># ---------------------------------------------------</span>
+
+<span class="k">FROM</span><span class="s"> ruby:2.6.1-alpine3.9</span>
+
+<span class="k">RUN </span><span class="nb">mkdir</span> <span class="nt">-p</span> /opt/www/myapp
+<span class="k">WORKDIR</span><span class="s"> /opt/www/myapp</span>
+
+<span class="k">ENV</span><span class="s"> RAILS_ENV production</span>
+<span class="k">ENV</span><span class="s"> NODE_ENV production</span>
+<span class="k">ENV</span><span class="s"> RAILS_SERVE_STATIC_FILES true</span>
+<span class="k">ENV</span><span class="s"> PATH="/opt/passenger/bin:$PATH"</span>
+
+<span class="c"># Some native extensions required by the webserver</span>
+
+<span class="k">COPY</span><span class="s"> --from=webserver-builder /usr/lib /usr/lib</span>
+
+<span class="c"># Passenger and its binary files.</span>
+
+<span class="k">COPY</span><span class="s"> --from=webserver-builder /opt/passenger /opt/passenger</span>
+
+<span class="c"># Some native extensions required by gems such as pg or mysql2.</span>
+
+<span class="k">COPY</span><span class="s"> --from=builder /usr/lib /usr/lib</span>
+
+<span class="c"># Timezone data is required at runtime</span>
+
+<span class="k">COPY</span><span class="s"> --from=builder /usr/share/zoneinfo/ /usr/share/zoneinfo/</span>
+
+<span class="c"># Ruby gems</span>
+
+<span class="k">COPY</span><span class="s"> --from=builder /usr/local/bundle /usr/local/bundle</span>
+
+<span class="k">COPY</span><span class="s"> --from=builder /app /opt/www/myapp</span>
+
+<span class="k">EXPOSE</span><span class="s"> 3000</span>
+<span class="k">CMD</span><span class="s"> ["passenger", "start", "--no-install-runtime", "--no-compile-runtime", "-b", "0.0.0.0"]</span></code></pre></figure>
+
+
+    </main>
+
+    <footer>
+  Contact me at <a href="mailto:bruno@bonamin.org">bruno@bonamin.org</a>
+</footer>
+
+  </body>
+</html>
