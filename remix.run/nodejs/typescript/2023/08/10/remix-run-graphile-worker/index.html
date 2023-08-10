@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<title>Setting up Graphile Worker with Remix.run | Landing Code</title>
+
+<meta name="description" content="The website of Bruno Bonamin." />
+
+<link rel="stylesheet" href="/_bridgetown/static/index.KQDRFF45.css" />
+<script src="/_bridgetown/static/index.RARUY3ZT.js" defer></script>
+<script type="module">let lastmod = 0
+function startReloadConnection() {
+  const evtSource = new EventSource("/_bridgetown/live_reload")
+  evtSource.onmessage = event => {
+    if (event.data == "reloaded!") {
+      location.reload()
+    } else {
+      const newmod = Number(event.data)
+      if (lastmod > 0 && newmod > 0 && lastmod < newmod) {
+        location.reload()
+      } else {
+        lastmod = newmod
+      }
+    }
+  }
+  evtSource.onerror = event => {
+    if (evtSource.readyState === 2) {
+      // reconnect with new object
+      evtSource.close()
+      console.warn("Live reload: attempting to reconnect in 3 seconds...")
+
+      setTimeout(() => startReloadConnection(), 3000)
+    }
+  }
+}
+setTimeout(() => {
+  startReloadConnection()
+}, 500)
+</script>
+
+  </head>
+  <body class="post ">
+    <header></header>
+
+<nav>
+  <ul>
+    <li><a href="/">Home</a></li>
+    <li><a href="/about">About</a></li>
+  </ul>
+</nav>
+
+
+    <main>
+      <h1>Setting up Graphile Worker with Remix.run</h1>
+
+<p>Coming from a Ruby on Rails background, it’s pretty much always been required to implement some sort of background job processing in order to integrate with external APIs or to run long running tasks without blocking the web request cycle and add robustness to the integration (with automated retries in case of failures, etc). <code class="highlighter-rouge">NodeJS</code> being async means that this is mostly not needed as any IO will run asynchronoously without blocking the event loop, but if more advanced features are required such as retries, processing in order, auditing, etc; then this is not enough. Looking for tools similar to <code class="highlighter-rouge">que</code> or <code class="highlighter-rouge">GoodJob</code> but for NodeJS, I stumbled upon <a href="LINK_GITHUB"><code class="highlighter-rouge">graphile worker</code></a>, which takes advantage of Postgres’ features to efficiently run workers without causing excessive load in the database. My team is small and I don’t want to run Redis in production, so this library fit very well.</p>
+
+<p>Remix.run however needs some tweaking in order to work with <a href="LINK_GITHUB"><code class="highlighter-rouge">graphile worker</code></a>, so below is the setup I needed to do in order to:</p>
+<ul>
+  <li>Enable the usage of Typescript and importing of internal npm packages from within the Remix app.</li>
+  <li>Produce a buildable javascript artifact that can be run in a separate process but alongside the rest of the Remix.run processes in development and production.</li>
+</ul>
+
+<p>First of all, I installed the graphile worker package using <code class="highlighter-rouge">npm install --save graphile-worker</code> and then created the worker entrypoint module in <code class="highlighter-rouge">$PROJECT_ROOT/worker/index.ts</code>. This file holds the <code class="highlighter-rouge">graphile worker</code> bootstrap code. I chose to import each worker task separately and add them to a task list, instead of choosing a task directory (which seems to also be an option, but would be more of a challenge for applications that run through a traspilation / minification process).</p>
+
+<div class="language-typescript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">import</span> <span class="p">{</span> <span class="nx">run</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">"</span><span class="s2">graphile-worker</span><span class="dl">"</span><span class="p">;</span>
+<span class="k">import</span> <span class="nx">hello</span> <span class="k">from</span> <span class="dl">"</span><span class="s2">./tasks/hello</span><span class="dl">"</span><span class="p">;</span>
+
+<span class="k">async</span> <span class="kd">function</span> <span class="nx">main</span><span class="p">()</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="nx">runner</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">run</span><span class="p">({</span>
+    <span class="na">connectionString</span><span class="p">:</span> <span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">DATABASE_URL</span><span class="p">,</span>
+    <span class="na">concurrency</span><span class="p">:</span> <span class="nb">Number</span><span class="p">(</span><span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">GRAPHILE_WORKER_CONCURRENCY</span> <span class="o">||</span> <span class="mi">5</span><span class="p">),</span>
+    <span class="na">noHandleSignals</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span>
+    <span class="na">pollInterval</span><span class="p">:</span> <span class="mi">1000</span><span class="p">,</span>
+    <span class="na">taskList</span><span class="p">:</span> <span class="p">{</span>
+      <span class="nx">hello</span><span class="p">,</span>
+    <span class="p">},</span>
+  <span class="p">});</span>
+
+  <span class="k">await</span> <span class="nx">runner</span><span class="p">.</span><span class="nx">promise</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="nx">main</span><span class="p">().</span><span class="k">catch</span><span class="p">((</span><span class="nx">err</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="nx">console</span><span class="p">.</span><span class="nx">error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+  <span class="nx">process</span><span class="p">.</span><span class="nx">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<p>Afterwards, I wrote the task implementation (this is just an example but this code could be an external API call, etc.):</p>
+
+<div class="language-typescript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">import</span> <span class="kd">type</span> <span class="p">{</span> <span class="nx">JobHelpers</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">"</span><span class="s2">graphile-worker</span><span class="dl">"</span><span class="p">;</span>
+
+<span class="kd">const</span> <span class="nx">hello</span> <span class="o">=</span> <span class="k">async</span> <span class="p">(</span><span class="nx">payload</span><span class="p">:</span> <span class="nx">unknown</span><span class="p">,</span> <span class="nx">helpers</span><span class="p">:</span> <span class="nx">JobHelpers</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="p">(</span><span class="k">typeof</span> <span class="nx">payload</span> <span class="o">===</span> <span class="dl">"</span><span class="s2">object</span><span class="dl">"</span> <span class="o">&amp;&amp;</span> <span class="nx">payload</span> <span class="o">&amp;&amp;</span> <span class="dl">"</span><span class="s2">name</span><span class="dl">"</span> <span class="k">in</span> <span class="nx">payload</span><span class="p">))</span>
+    <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="dl">"</span><span class="s2">Payload must be an object with a name property</span><span class="dl">"</span><span class="p">);</span>
+
+  <span class="kd">const</span> <span class="p">{</span> <span class="nx">name</span> <span class="p">}</span> <span class="o">=</span> <span class="nx">payload</span><span class="p">;</span>
+  <span class="nx">helpers</span><span class="p">.</span><span class="nx">logger</span><span class="p">.</span><span class="nx">info</span><span class="p">(</span><span class="s2">`Hello, </span><span class="p">${</span><span class="nx">name</span><span class="p">}</span><span class="s2">`</span><span class="p">);</span>
+<span class="p">};</span>
+
+<span class="k">export</span> <span class="k">default</span> <span class="nx">hello</span><span class="p">;</span>
+</code></pre></div></div>
+
+<p>The two files above should be sufficient to determine “how to process a <code class="highlighter-rouge">hello</code> asynchronous task”, but to actually enqueue the task from a Remix.run loader function (actions work just as well), I needed to build a custom <code class="highlighter-rouge">addJob</code> function:</p>
+
+<div class="language-typescript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">import</span> <span class="kd">type</span> <span class="p">{</span> <span class="nx">LoaderArgs</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">"</span><span class="s2">@remix-run/server-runtime</span><span class="dl">"</span><span class="p">;</span>
+<span class="k">import</span> <span class="p">{</span> <span class="nx">addJob</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">"</span><span class="s2">~/utils/worker</span><span class="dl">"</span><span class="p">;</span>
+
+<span class="k">export</span> <span class="k">async</span> <span class="kd">function</span> <span class="nx">loader</span><span class="p">({</span> <span class="nx">request</span> <span class="p">}:</span> <span class="nx">LoaderArgs</span><span class="p">)</span> <span class="p">{</span>
+  <span class="k">await</span> <span class="nx">addJob</span><span class="p">(</span>
+    <span class="dl">"</span><span class="s2">hello</span><span class="dl">"</span><span class="p">,</span>
+    <span class="p">{</span> <span class="na">name</span><span class="p">:</span> <span class="dl">"</span><span class="s2">Graphile Worker</span><span class="dl">"</span> <span class="p">}</span>
+  <span class="p">);</span>
+
+  <span class="k">return</span> <span class="kc">null</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>And this is the <code class="highlighter-rouge">~/utils/worker</code> implementation, which avoids creating duplicate database connections when automatically reloading code during development:</p>
+
+<div class="language-typescript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">import</span> <span class="kd">type</span> <span class="p">{</span> <span class="nx">WorkerUtils</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">"</span><span class="s2">graphile-worker</span><span class="dl">"</span><span class="p">;</span>
+<span class="k">import</span> <span class="p">{</span> <span class="nx">makeWorkerUtils</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">"</span><span class="s2">graphile-worker</span><span class="dl">"</span><span class="p">;</span>
+<span class="k">import</span> <span class="p">{</span> <span class="nx">singleton</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">"</span><span class="s2">../singleton.server</span><span class="dl">"</span><span class="p">;</span>
+
+<span class="c1">// This function is meant to be accessed through the singleton function,</span>
+<span class="c1">// which will ensure that the workerUtils are only created once to prevent duplicate</span>
+<span class="c1">// connections to the database.</span>
+<span class="kd">const</span> <span class="nx">createWorkerUtils</span> <span class="o">=</span> <span class="k">async</span> <span class="p">():</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="nx">WorkerUtils</span><span class="o">&gt;</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="nx">workerUtils</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">makeWorkerUtils</span><span class="p">({</span>
+    <span class="na">connectionString</span><span class="p">:</span> <span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">DATABASE_URL</span><span class="p">,</span>
+  <span class="p">});</span>
+
+  <span class="k">return</span> <span class="nx">workerUtils</span><span class="p">;</span>
+<span class="p">};</span>
+
+<span class="k">export</span> <span class="kd">const</span> <span class="nx">addJob</span> <span class="o">=</span> <span class="k">async</span> <span class="p">(</span>
+  <span class="nx">identifier</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span>
+  <span class="nx">payload</span><span class="p">:</span> <span class="kr">any</span><span class="p">,</span>
+  <span class="nx">options</span><span class="p">?:</span> <span class="p">{</span> <span class="nx">queueName</span><span class="p">?:</span> <span class="kr">string</span><span class="p">;</span> <span class="nl">runAt</span><span class="p">?:</span> <span class="nb">Date</span><span class="p">;</span> <span class="nl">maxAttempts</span><span class="p">?:</span> <span class="kr">number</span> <span class="p">}</span>
+<span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="nx">worker</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">singleton</span><span class="p">(</span><span class="dl">"</span><span class="s2">createWorkerUtils</span><span class="dl">"</span><span class="p">,</span> <span class="nx">createWorkerUtils</span><span class="p">);</span>
+  <span class="k">return</span> <span class="nx">worker</span><span class="p">.</span><span class="nx">addJob</span><span class="p">(</span><span class="nx">identifier</span><span class="p">,</span> <span class="nx">payload</span><span class="p">,</span> <span class="nx">options</span><span class="p">);</span>
+<span class="p">};</span>
+</code></pre></div></div>
+
+<p>The singleton (<code class="highlighter-rouge">~/singleton.server.ts</code>) is taken from the Remix indie stack:</p>
+
+<div class="language-typescript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// since the dev server re-requires the bundle, do some shenanigans to make</span>
+<span class="c1">// certain things persist across that 😆</span>
+<span class="c1">// Borrowed/modified from https://github.com/jenseng/abuse-the-platform/blob/2993a7e846c95ace693ce61626fa072174c8d9c7/app/utils/singleton.ts</span>
+
+<span class="k">export</span> <span class="kd">function</span> <span class="nx">singleton</span><span class="o">&lt;</span><span class="nx">Value</span><span class="o">&gt;</span><span class="p">(</span><span class="nx">name</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span> <span class="nx">value</span><span class="p">:</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="nx">Value</span><span class="p">):</span> <span class="nx">Value</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="nx">yolo</span> <span class="o">=</span> <span class="nb">global</span> <span class="k">as</span> <span class="kr">any</span>
+  <span class="nx">yolo</span><span class="p">.</span><span class="nx">__singletons</span> <span class="o">??=</span> <span class="p">{}</span>
+  <span class="nx">yolo</span><span class="p">.</span><span class="nx">__singletons</span><span class="p">[</span><span class="nx">name</span><span class="p">]</span> <span class="o">??=</span> <span class="nx">value</span><span class="p">()</span>
+  <span class="k">return</span> <span class="nx">yolo</span><span class="p">.</span><span class="nx">__singletons</span><span class="p">[</span><span class="nx">name</span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>In order to run the worker process independently of the Remix.run app server, I needed to write a custom esbuild script and updating the <code class="highlighter-rouge">package.json</code> tasks to produce development and production builds. I installed <code class="highlighter-rouge">tsx</code> (<code class="highlighter-rouge">npm install tsx --save-dev</code>), and added <code class="highlighter-rouge">build:worker</code>, <code class="highlighter-rouge">dev:worker</code> and <code class="highlighter-rouge">worker</code> tasks:</p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="err">//</span><span class="w"> </span><span class="err">...</span><span class="w">
+  </span><span class="nl">"scripts"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="err">//</span><span class="w"> </span><span class="err">...</span><span class="w">
+    </span><span class="err">//</span><span class="w"> </span><span class="err">The</span><span class="w"> </span><span class="s2">"dev"</span><span class="w"> </span><span class="err">task</span><span class="p">,</span><span class="w"> </span><span class="err">omitted</span><span class="w"> </span><span class="err">here</span><span class="p">,</span><span class="w"> </span><span class="err">runs</span><span class="w"> </span><span class="s2">"build"</span><span class="w"> </span><span class="err">and</span><span class="w"> </span><span class="err">automatically</span><span class="w"> </span><span class="err">picks</span><span class="w"> </span><span class="err">up</span><span class="w"> </span><span class="err">any</span><span class="w"> </span><span class="err">dev:*</span><span class="w"> </span><span class="err">task.</span><span class="w">
+    </span><span class="err">//</span><span class="w"> </span><span class="err">The</span><span class="w"> </span><span class="s2">"build"</span><span class="w"> </span><span class="err">task</span><span class="p">,</span><span class="w"> </span><span class="err">omitted</span><span class="w"> </span><span class="err">here</span><span class="p">,</span><span class="w"> </span><span class="err">automatically</span><span class="w"> </span><span class="err">picks</span><span class="w"> </span><span class="err">up</span><span class="w"> </span><span class="err">any</span><span class="w"> </span><span class="err">build:*</span><span class="w"> </span><span class="err">task.</span><span class="w">
+    </span><span class="nl">"build:worker"</span><span class="p">:</span><span class="w"> </span><span class="s2">"tsx other/build-worker.ts"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"dev:worker"</span><span class="p">:</span><span class="w"> </span><span class="s2">"cross-env NODE_ENV=development GRAPHILE_LOGGER_DEBUG=1 nodemon --require dotenv/config build/worker.js --watch build/worker.js"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"worker"</span><span class="p">:</span><span class="w"> </span><span class="s2">"cross-env NODE_ENV=production node ./build/worker.js"</span><span class="p">,</span><span class="w">
+    </span><span class="err">//...</span><span class="w">
+  </span><span class="p">}</span><span class="w">
+  </span><span class="err">//...</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p>With the <code class="highlighter-rouge">other/build-worker.ts</code> file being heavily inspired by the <a href="LINK_GITHUB">Epic Stack server build script</a>:</p>
+
+<div class="language-typescript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">import</span> <span class="nx">esbuild</span> <span class="k">from</span> <span class="dl">"</span><span class="s2">esbuild</span><span class="dl">"</span><span class="p">;</span>
+<span class="k">import</span> <span class="nx">pkg</span> <span class="k">from</span> <span class="dl">"</span><span class="s2">../package.json</span><span class="dl">"</span><span class="p">;</span>
+
+<span class="nx">esbuild</span>
+  <span class="p">.</span><span class="nx">build</span><span class="p">({</span>
+    <span class="na">entryPoints</span><span class="p">:</span> <span class="p">[</span><span class="dl">"</span><span class="s2">./worker/index.ts</span><span class="dl">"</span><span class="p">],</span>
+    <span class="na">platform</span><span class="p">:</span> <span class="dl">"</span><span class="s2">node</span><span class="dl">"</span><span class="p">,</span>
+    <span class="na">outfile</span><span class="p">:</span> <span class="dl">"</span><span class="s2">./build/worker.js</span><span class="dl">"</span><span class="p">,</span>
+    <span class="na">format</span><span class="p">:</span> <span class="dl">"</span><span class="s2">cjs</span><span class="dl">"</span><span class="p">,</span>
+    <span class="na">bundle</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+    <span class="na">external</span><span class="p">:</span> <span class="p">[</span>
+      <span class="p">...</span><span class="nb">Object</span><span class="p">.</span><span class="nx">keys</span><span class="p">(</span><span class="nx">pkg</span><span class="p">.</span><span class="nx">dependencies</span> <span class="o">||</span> <span class="p">{}),</span>
+      <span class="p">...</span><span class="nb">Object</span><span class="p">.</span><span class="nx">keys</span><span class="p">(</span><span class="nx">pkg</span><span class="p">.</span><span class="nx">devDependencies</span> <span class="o">||</span> <span class="p">{}),</span>
+    <span class="p">],</span>
+  <span class="p">})</span>
+  <span class="p">.</span><span class="k">catch</span><span class="p">((</span><span class="nx">error</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="nx">console</span><span class="p">.</span><span class="nx">error</span><span class="p">(</span><span class="nx">error</span><span class="p">);</span>
+    <span class="nx">process</span><span class="p">.</span><span class="nx">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+  <span class="p">});</span>
+</code></pre></div></div>
+
+<p>Finally, I had to update our Dockerfile’s entrypoint script to <em>stop</em> running <code class="highlighter-rouge">npm run start</code>, which used to always start the web server directly, and instead configured our set up to run separate tasks for the web server and the worker. As this project was deployed in <code class="highlighter-rouge">fly.io</code>, I had to add a <code class="highlighter-rouge">[processes]</code> config to <code class="highlighter-rouge">fly.toml</code>, but this should be portable to docker compose, ecs or any other kind of production setup that allows overriding the Docker CMD command:</p>
+
+<div class="language-toml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">[processes]</span>
+<span class="py">app</span> <span class="p">=</span> <span class="s">"npm run app"</span>
+<span class="py">worker</span> <span class="p">=</span> <span class="s">"npm run worker"</span>
+
+</code></pre></div></div>
+
+<h2 id="addendum">Addendum</h2>
+<ul>
+  <li>The <code class="highlighter-rouge">graphile worker</code> package allows running tasks of a given name <em>sequentially</em> by specifying the “queueName” option. I found this very useful to be able to process incoming webhooks from Stripe avoiding race conditions (they send webhooks too quickly one after another!)
+    <div class="language-typescript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">await</span> <span class="nx">addJob</span><span class="p">(</span><span class="dl">"</span><span class="s2">handleStripeWebhook</span><span class="dl">"</span><span class="p">,</span> <span class="nx">event</span><span class="p">,</span> <span class="p">{</span> <span class="na">queueName</span><span class="p">:</span> <span class="dl">"</span><span class="s2">stripe-webhooks</span><span class="dl">"</span> <span class="p">});</span>
+</code></pre></div>    </div>
+  </li>
+  <li>The <code class="highlighter-rouge">esbuild</code> package supports an option called <code class="highlighter-rouge">packages=external</code>, but it didn’t work very well for me (I want to bundle all internal code, but reference any npm package via require), because I’m using custom import paths with <code class="highlighter-rouge">~/path/to/file</code>, and <code class="highlighter-rouge">packages=external</code> will not bundle anything that doesn’t start with a relative or absolute directory path name, so I needed to fall back to specifying the dependencies via <code class="highlighter-rouge">package.json</code>.</li>
+</ul>
+
+
+
+    </main>
+
+    <footer>
+  Contact me at <a href="mailto:bruno@bonamin.org">bruno@bonamin.org</a>
+</footer>
+
+  </body>
+</html>
