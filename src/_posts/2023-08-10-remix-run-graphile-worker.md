@@ -2,7 +2,8 @@
 layout: post
 title: "Setting up Graphile Worker with Remix.run"
 date: 2023-08-10 10:28:33 -0300
-categories: remix.run nodejs typescript
+categories: remix.run
+permalink: /:slug/
 ---
 
 Coming from a Ruby on Rails background, it's pretty much always been required to implement some sort of background job processing in order to integrate with external APIs or to run long running tasks without blocking the web request cycle and add robustness to the integration (with automated retries in case of failures, etc). `NodeJS` being async means that this is mostly not needed as any IO will run asynchronoously without blocking the event loop, but if more advanced features are required such as retries, processing in order, auditing, etc; then this is not enough. Looking for tools similar to `que` or `GoodJob` but for NodeJS, I stumbled upon [`graphile worker`](https://github.com/graphile/worker), which takes advantage of Postgres' features to efficiently run workers without causing excessive load in the database. My team is small and I don't want to run Redis in production, so this library fit very well.
