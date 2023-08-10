@@ -5,9 +5,9 @@ date: 2023-08-10 10:28:33 -0300
 categories: remix.run nodejs typescript
 ---
 
-Coming from a Ruby on Rails background, it's pretty much always been required to implement some sort of background job processing in order to integrate with external APIs or to run long running tasks without blocking the web request cycle and add robustness to the integration (with automated retries in case of failures, etc). `NodeJS` being async means that this is mostly not needed as any IO will run asynchronoously without blocking the event loop, but if more advanced features are required such as retries, processing in order, auditing, etc; then this is not enough. Looking for tools similar to `que` or `GoodJob` but for NodeJS, I stumbled upon [`graphile worker`](LINK_GITHUB), which takes advantage of Postgres' features to efficiently run workers without causing excessive load in the database. My team is small and I don't want to run Redis in production, so this library fit very well.
+Coming from a Ruby on Rails background, it's pretty much always been required to implement some sort of background job processing in order to integrate with external APIs or to run long running tasks without blocking the web request cycle and add robustness to the integration (with automated retries in case of failures, etc). `NodeJS` being async means that this is mostly not needed as any IO will run asynchronoously without blocking the event loop, but if more advanced features are required such as retries, processing in order, auditing, etc; then this is not enough. Looking for tools similar to `que` or `GoodJob` but for NodeJS, I stumbled upon [`graphile worker`](https://github.com/graphile/worker), which takes advantage of Postgres' features to efficiently run workers without causing excessive load in the database. My team is small and I don't want to run Redis in production, so this library fit very well.
 
-Remix.run however needs some tweaking in order to work with [`graphile worker`](LINK_GITHUB), so below is the setup I needed to do in order to:
+Remix.run however needs some tweaking in order to work with [`graphile worker`](https://github.com/graphile/worker), so below is the setup I needed to do in order to:
 - Enable the usage of Typescript and importing of internal npm packages from within the Remix app.
 - Produce a buildable javascript artifact that can be run in a separate process but alongside the rest of the Remix.run processes in development and production.
 
@@ -130,7 +130,7 @@ In order to run the worker process independently of the Remix.run app server, I 
 }
 ```
 
-With the `other/build-worker.ts` file being heavily inspired by the [Epic Stack server build script](LINK_GITHUB):
+With the `other/build-worker.ts` file being heavily inspired by the [Epic Stack server build script](https://github.com/epicweb-dev/epic-stack/blob/1e310c24d8b5339bfe797794102cbc9f6ea069a6/other/build-server.ts):
 
 ```typescript
 import esbuild from "esbuild";
