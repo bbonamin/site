@@ -55,9 +55,9 @@ setTimeout(() => {
     <main>
       <h1>Setting up Graphile Worker with Remix.run</h1>
 
-<p>Coming from a Ruby on Rails background, it’s pretty much always been required to implement some sort of background job processing in order to integrate with external APIs or to run long running tasks without blocking the web request cycle and add robustness to the integration (with automated retries in case of failures, etc). <code class="highlighter-rouge">NodeJS</code> being async means that this is mostly not needed as any IO will run asynchronoously without blocking the event loop, but if more advanced features are required such as retries, processing in order, auditing, etc; then this is not enough. Looking for tools similar to <code class="highlighter-rouge">que</code> or <code class="highlighter-rouge">GoodJob</code> but for NodeJS, I stumbled upon <a href="LINK_GITHUB"><code class="highlighter-rouge">graphile worker</code></a>, which takes advantage of Postgres’ features to efficiently run workers without causing excessive load in the database. My team is small and I don’t want to run Redis in production, so this library fit very well.</p>
+<p>Coming from a Ruby on Rails background, it’s pretty much always been required to implement some sort of background job processing in order to integrate with external APIs or to run long running tasks without blocking the web request cycle and add robustness to the integration (with automated retries in case of failures, etc). <code class="highlighter-rouge">NodeJS</code> being async means that this is mostly not needed as any IO will run asynchronoously without blocking the event loop, but if more advanced features are required such as retries, processing in order, auditing, etc; then this is not enough. Looking for tools similar to <code class="highlighter-rouge">que</code> or <code class="highlighter-rouge">GoodJob</code> but for NodeJS, I stumbled upon <a href="https://github.com/graphile/worker"><code class="highlighter-rouge">graphile worker</code></a>, which takes advantage of Postgres’ features to efficiently run workers without causing excessive load in the database. My team is small and I don’t want to run Redis in production, so this library fit very well.</p>
 
-<p>Remix.run however needs some tweaking in order to work with <a href="LINK_GITHUB"><code class="highlighter-rouge">graphile worker</code></a>, so below is the setup I needed to do in order to:</p>
+<p>Remix.run however needs some tweaking in order to work with <a href="https://github.com/graphile/worker"><code class="highlighter-rouge">graphile worker</code></a>, so below is the setup I needed to do in order to:</p>
 <ul>
   <li>Enable the usage of Typescript and importing of internal npm packages from within the Remix app.</li>
   <li>Produce a buildable javascript artifact that can be run in a separate process but alongside the rest of the Remix.run processes in development and production.</li>
@@ -176,7 +176,7 @@ setTimeout(() => {
 </span><span class="p">}</span><span class="w">
 </span></code></pre></div></div>
 
-<p>With the <code class="highlighter-rouge">other/build-worker.ts</code> file being heavily inspired by the <a href="LINK_GITHUB">Epic Stack server build script</a>:</p>
+<p>With the <code class="highlighter-rouge">other/build-worker.ts</code> file being heavily inspired by the <a href="https://github.com/epicweb-dev/epic-stack/blob/1e310c24d8b5339bfe797794102cbc9f6ea069a6/other/build-server.ts">Epic Stack server build script</a>:</p>
 
 <div class="language-typescript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">import</span> <span class="nx">esbuild</span> <span class="k">from</span> <span class="dl">"</span><span class="s2">esbuild</span><span class="dl">"</span><span class="p">;</span>
 <span class="k">import</span> <span class="nx">pkg</span> <span class="k">from</span> <span class="dl">"</span><span class="s2">../package.json</span><span class="dl">"</span><span class="p">;</span>
